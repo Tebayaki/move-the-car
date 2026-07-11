@@ -9,6 +9,7 @@ from flask import Flask, jsonify, request, render_template
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
+TOKEN = os.environ.get("TOKEN", "")
 SENDKEY = os.environ.get("SENDKEY", "")
 SERVERCHAN_URL = "https://sctapi.ftqq.com/{}.send"
 
@@ -35,7 +36,7 @@ def _client_ip() -> str:
 
 
 # ── Routes ───────────────────────────────────────────────
-@app.route("/")
+@app.route("/" + TOKEN)
 def index():
     return render_template("index.html")
 

@@ -40,6 +40,11 @@ def index():
     return render_template("index.html")
 
 
+@app.route("/robots.txt")
+def robots():
+    return app.send_static_file("robots.txt")
+
+
 @app.route("/api/notify", methods=["POST"])
 def notify():
     ip = _client_ip()

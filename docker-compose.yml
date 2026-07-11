@@ -1,0 +1,8 @@
+services:
+  move-the-car:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - SENDKEY=${SENDKEY}
+    restart: unless-stopped

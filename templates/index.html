@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>🚗 挪车码 🚙</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 500;
+      color: #333;
+      margin-bottom: 32px;
+      letter-spacing: 1px;
+    }
+
+    .notify-btn {
+      display: block;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      max-width: 320px;
+      margin: 0 auto 24px;
+      border: none;
+      border-radius: 24px;
+      background: #1677ff;
+      color: #fff;
+      font-size: 2.2rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      cursor: pointer;
+      transition: background .2s, transform .1s, opacity .2s;
+      box-shadow: 0 8px 24px rgba(22,119,255,.3);
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    .notify-btn:active:not(:disabled) {
+      transform: scale(0.96);
+      background: #0958d9;
+    }
+
+    .notify-btn:disabled {
+      cursor: not-allowed;
+      opacity: .65;
+    }
+
+    .notify-btn.sending {
+      background: #8c8c8c;
+      box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    }
+
+    .notify-btn.success {
+      background: #52c41a;
+      box-shadow: 0 8px 24px rgba(82,196,26,.3);
+    }
+
+    .notify-btn.fail {
+      background: #ff4d4f;
+      box-shadow: 0 8px 24px rgba(255,77,79,.3);
+    }
+
+    .status {
+      min-height: 2.4rem;
+      font-size: 1.1rem;
+      color: #555;
+      transition: opacity .2s;
+    }
+
+    .status.success { color: #52c41a; }
+    .status.fail    { color: #ff4d4f; }
+
+    .footer {
+      margin-top: 48px;
+      font-size: .8rem;
+      color: #bbb;
+    }
+
+    .msg-area {
+      width: 100%;
+      max-width: 320px;
+      margin: 0 auto 8px;
+      padding: 12px 14px;
+      border: 1.5px solid #d9d9d9;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-family: inherit;
+      resize: none;
+      outline: none;
+      transition: border-color .2s;
+      display: block;
+      background: #fff;
+    }
+
+    .msg-area:focus {
+      border-color: #1677ff;
+    }
+
+    .char-counter {
+      text-align: right;
+      max-width: 320px;
+      margin: 0 auto 20px;
+      font-size: .8rem;
+      color: #bbb;
+      padding-right: 4px;
+    }
+
+    .char-counter.warn { color: #faad14; }
+    .char-counter.over { color: #ff4d4f; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚗 挪车码 🚙</h1>
+    <button class="notify-btn" id="notifyBtn">点击通知我挪车</button>
+    <textarea class="msg-area" id="msgArea" rows="3" maxlength="50" placeholder="留言给车主（选填）"></textarea>
+    <p class="char-counter" id="charCounter">0/50</p>
+    <p class="status" id="status"></p>
+    <p class="footer">临时停车，敬请见谅。</br>车主收到通知后会尽快前往挪车！</p>
+  </div>
+
+  <script>
+    (function () {
+      const btn = document.getElementById('notifyBtn');
+      const status = document.getElementById('status');
+      const msgArea = document.getElementById('msgArea');
+      const charCounter = document.getElementById('charCounter');
+      const COOLDOWN = 5000;   // 5s button cooldown
+      const TIMEOUT  = 10000;  // 10s fetch timeout
+      let canClick = true;
+
+      // ── Character counter ────────────────────────
+      msgArea.addEventListener('input', function () {
+        const len = msgArea.value.length;
+        charCounter.textContent = len + '/50';
+        charCounter.className = 'char-counter' + (len >= 40 ? ' warn' : '') + (len >= 50 ? ' over' : '');
+      });
+
+      function setState(state, msg) {
+        btn.className = 'notify-btn' + (state ? ' ' + state : '');
+        status.className = 'status' + (state ? ' ' + state : '');
+        status.textContent = msg || '';
+      }
+
+      btn.addEventListener('click', async function () {
+        if (!canClick) return;
+        canClick = false;
+        btn.disabled = true;
+
+        setState('sending', '通知发送中…');
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), TIMEOUT);
+
+        try {
+          const res = await fetch('/api/notify', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: msgArea.value}),
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+
+          if (res.ok) {
+            const data = await res.json();
+            if (data.ok) {
+              setState('success', '✅ 已成功发送通知，请耐心等待');
+            } else {
+              setState('fail', '❌ 通知发送失败');
+            }
+          } else if (res.status === 429) {
+            setState('fail', '⏳ 点击太频繁，请30秒后再试');
+          } else {
+            setState('fail', '❌ 通知发送失败');
+          }
+        } catch (err) {
+          clearTimeout(timer);
+          setState('fail', '❌ 通知发送失败');
+        }
+
+        // Re-enable after cooldown
+        setTimeout(() => {
+          canClick = true;
+          btn.disabled = false;
+          // Clear status if it was a transient state
+          if (btn.classList.contains('sending')) {
+            setState('', '');
+          }
+        }, COOLDOWN);
+      });
+    })();
+  </script>
+</body>
+</html>
